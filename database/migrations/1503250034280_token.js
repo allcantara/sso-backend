@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict'
 
 /** @type {import('@adonisjs/lucid/src/Schema')} */

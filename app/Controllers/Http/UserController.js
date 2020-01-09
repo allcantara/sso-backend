@@ -17,7 +17,6 @@ const erroMessages = {
   'password.min': 'A senha deve conter no mínimo 8 caracteres!',
 }
 
-
 class UserController {
   async create({ request, response }) {
     try{
@@ -34,22 +33,28 @@ class UserController {
       })
 
       if(!validation.fails()) {
-        await file.moveAll(Helpers.tmpPath('avatar_user'), item => ({
-          name: `${Date.now()}-${item.clientName}`
-        }))
+        const data = request.only(['username', 'email', 'password']);
+        if(file) {
+          await file.moveAll(Helpers.tmpPath('avatar_user'), item => ({
+            name: `${Date.now()}-${item.clientName}`
+          }))
 
-        if(file.movedAll()) {
-          const data = request.only(['username', 'email', 'password']);
-          await Promise.all(
-            file.movedList().map(item => {
-              data.path_image = item.fileName
-            })
-          )
-          const user = await User.create(data);
-          return user;
+          if(file.movedAll()) {
+            await Promise.all(
+              file.movedList().map(item => {
+                data.path_image = item.fileName
+              })
+            )
+            const user = await User.create(data);
+            return user;
+          } else {
+            console.log(file.errors())
+            return file.errors();
+          }
         } else {
-          console.log(file.errors())
-          return file.errors();
+          data.path_image = '';
+          const user = await User.create(data);
+          return user
         }
       } else {
         console.log(validation.messages())
@@ -65,24 +70,24 @@ class UserController {
     try{
         const { email, password } = request.all();
         if(!email || !password) {
-          return response.status(403).send({ message: 'Todos os campos devem ser preenchidos!' })
+          return response.status(203).send({ message: 'Todos os campos devem ser preenchidos!' })
         }
-        const data = await Database.select('email', 'approved').from('users').where('email', email).first();
+        const data = await Database.select('id', 'email', 'approved', 'admin').from('users').where('email', email).first();
         if(data) {
           if(data.approved) {
             const validToken = await auth.attempt(email, password);
-            return validToken;
+            return { ...validToken, ...data };
           } else {
-            return response.status(403).send({ message: 'Acesso negado!' })
+            return response.status(203).send({ message: 'Acesso negado!' })
           }
         } else {
-          return response.status(404).send({ message: 'Este usuário não existe!' })
+          return response.status(203).send({ message: 'Este usuário não existe!' })
         }
 
     } catch(err) {
       console.log(err)
       if(err && err.passwordField === 'password') {
-        return response.status(403).send({
+        return response.status(203).send({
           message: 'Sua senha está incorreta!'
         })
       }
@@ -154,16 +159,16 @@ class UserController {
     try{
       const { id } = auth.user;
       const userAdmin = await User.query().where('id', id).first();
-      const { email_user, approved } = request.all();
-      if(!email_user) return response.status(400).send({ message: 'O e-mail do usuário é obrigatório!' });
+      const { email, approved } = request.all();
+      if(!email) return response.status(203).send({ message: 'O e-mail do usuário é obrigatório!' });
       if(userAdmin && userAdmin.admin) {
-        const data = await User.query().where('email', email_user).first();
+        const data = await User.query().where('email', email).first();
         if(data) {
           data.approved = approved;
           await data.save()
           return data;
         } else {
-          return response.status(204).send({ message: 'Este usuário não existe!' });
+          return response.status(203).send({ message: 'Este usuário não existe!' });
         }
       } else {
         return response.status(203).send({ message: 'Você não pode aprovar este usuário!' });
@@ -178,10 +183,10 @@ class UserController {
     try{
       const { id } = auth.user;
       const userAdmin = await User.query().where('id', id).first();
-      const { email_user, admin } = request.all();
-      if(!email_user) return response.status(400).send({ message: 'O e-mail do usuário é obrigatório!' });
+      const { email, admin } = request.all();
+      if(!email) return response.status(203).send({ message: 'O e-mail do usuário é obrigatório!' });
       if(userAdmin && userAdmin.admin) {
-        const data = await User.query().where('email', email_user).first();
+        const data = await User.query().where('email', email).first();
         if(data) {
           if(data.approved) {
             data.admin = admin;
@@ -191,7 +196,7 @@ class UserController {
             return response.status(203).send({ message: 'Este usuário ainda não foi aprovado!' })
           }
         } else {
-          return response.status(204).send({ message: 'Este usuário não existe!' })
+          return response.status(203).send({ message: 'Este usuário não existe!' })
         }
       } else {
         return response.status(203).send({ message: 'Você não pode aprovar este usuário!' });
@@ -205,10 +210,10 @@ class UserController {
   async showUser({ params, request, response, auth }) {
     try {
       const { id } = auth.user;
-      const userAdmin = await User.query().where('id', id).first();
+      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first();
       if(userAdmin && userAdmin.admin) {
         const user = await User.query().where('id', params.id).first();
-        if(!user) return response.status(204).send({ message: 'Nenhum registro encontrado!' });
+        if(!user) return response.status(203).send({ message: 'Nenhum registro encontrado!' });
         return user;
       } else {
         return response.status(203).send({ message: 'Acesso negado!' });
@@ -253,14 +258,14 @@ class UserController {
         }
 
         const { id } = auth.user;
-        const userAuth = await User.query().where('id', id).first();
+        const userAuth = await Database.select('id', 'admin').from('users').where('id', id).first();
         const user = await User.query().where('id', params.id).first();
-
+        console.log(user.id === userAuth.id)
         if(user) {
           if(user.id === userAuth.id || userAuth.admin) {
             if(user.username !== data.username) user.username = data.username;
             if(user.email !== data.email) user.email = data.email;
-            if(user.password !== data.password) user.password = data.password;
+            if(user.id === userAuth.id && user.password !== data.password) user.password = data.password;
             if(user.path_image !== data.path_image) user.path_image = data.path_image;
 
             await user.save();
@@ -275,8 +280,9 @@ class UserController {
             });
           }
         } else {
-          return response.status(204).send({ message: 'Este usuário não existe!' });
+          return response.status(203).send({ message: 'Este usuário não existe!' });
         }
+
       } else {
         console.log(validation.messages())
         return response.status(203).send({ message: validation.messages() });
@@ -290,10 +296,10 @@ class UserController {
   async destroy({ params, request, response, auth }) {
     try {
       const { id } = auth.user;
-      const userAdmin = await User.query().where('id', id).first();
+      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first();
       if(userAdmin && userAdmin.admin) {
         const user = await User.query().where('id', params.id).first();
-        if(!user) return response.status(204).send({ message: 'Nenhum registro encontrado!' });
+        if(!user) return response.status(203).send({ message: 'Nenhum registro encontrado!' });
         await user.delete()
         return response.status(200).send({ message: 'Registro excluído com sucesso!' });
       } else {

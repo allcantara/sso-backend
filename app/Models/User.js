@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict'
 
 /** @type {typeof import('@adonisjs/lucid/src/Lucid/Model')} */
@@ -33,6 +34,10 @@ class User extends Model {
    */
   tokens () {
     return this.hasMany('App/Models/Token')
+  }
+
+  modulos() {
+    return this.hasMany('App/Models/Modulo')
   }
 }
 
