@@ -1,9 +1,10 @@
 // @ts-nocheck
 'use strict'
 
-const User = use('App/Models/User')
+const User = use('App/Models/User');
+const UserToken = use('App/Models/UserToken');
 const { validateAll } = use('Validator');
-const Database = use('Database')
+const Database = use('Database');
 const Helpers = use('Helpers');
 
 const erroMessages = {
@@ -76,6 +77,23 @@ class UserController {
         if(data) {
           if(data.approved) {
             const validToken = await auth.attempt(email, password);
+
+            const data_token = {
+              user_id: data.id,
+              token: validToken.token,
+              hora: new Date().getHours(),
+            }
+
+            const existe_token = await UserToken.query().where('user_id', data.id).first();
+            
+            if(!existe_token) {
+              await UserToken.create(data_token);
+            } else {
+                existe_token.token = validToken.token;
+                existe_token.hora = new Date().getHours();
+                await existe_token.save();
+            }
+
             return { ...validToken, ...data };
           } else {
             return response.status(203).send({ message: 'Acesso negado!' })
@@ -95,6 +113,32 @@ class UserController {
         message: 'Ocorreu um erro inesperado...',
         error: err
       });
+    }
+  }
+
+  async loggedUser({ request, response }) {
+    try {
+      const { url } = request.all()
+      const modulo = await Database.select('user_id').from('modulos').where('url', url).first();
+      const data = await UserToken.query().where('user_id', modulo.user_id).first();
+      const user = data ? await Database.select('id', 'username', 'email').from('users').where('id', data.user_id).first() : null;
+      if(data) {
+          if(new Date().getHours() === data.hora && data.token) {
+              return response.status(200).send({ logged: true, user, token: data.token });
+          } else {
+              data.token = null;
+              await data.save();
+              return response.status(203).send({ logged: false, user });
+          }
+      }
+      
+      return response.status(404).send({ message: 'Usuário inválido!' });
+    } catch(err) {
+        console.log(err);
+        return response.status(500).send({
+            message: 'Ocorreu um erro na busca!',
+            error: err
+        })
     }
   }
 

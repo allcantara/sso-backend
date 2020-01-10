@@ -21,6 +21,7 @@ Route.post('/user', 'UserController.create');
 Route.post('/login', 'UserController.login');
 Route.post('/user/approved', 'UserController.approvedUser').middleware(["auth"]);
 Route.post('/user/approved/admin', 'UserController.approvedAdmin').middleware(["auth"]);
+Route.port('/user/logged', 'UserController.loggedUser').middleware(['auth']);
 Route.put('/user/update/:id', 'UserController.updateUser').middleware(["auth"]);
 Route.delete('/user/delete/:id', 'UserController.destroy').middleware(["auth"]);
 
