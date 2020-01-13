@@ -5,6 +5,7 @@ const { validateAll } = use('Validator');
 const User = use('App/Models/User')
 const Modulo = use('App/Models/Modulo')
 const Database = use('Database');
+const Encryption = use('Encryption')
 
 const erroMessages = {
   'name.required': 'O nome do módulo é obrigatório!',
@@ -32,8 +33,7 @@ class ModuloController {
    */
   async index ({ request, response, auth }) {
     try {
-      const { id } = auth.user
-      const userAdmin = await Database.select('admin').from('users').where('id', id).first();
+      const userAdmin = await auth.getUser()
       if(userAdmin && userAdmin.admin) {
         const data = await Database.select('*').from('modulos');
         return data;
@@ -59,8 +59,7 @@ class ModuloController {
    */
   async store ({ request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await User.query().where('id', id).first();
+      const userAdmin = await auth.getUser()
       if(userAdmin && userAdmin.admin) {
         const validation = await validateAll(request.all(), {
           user_id: 'required',
@@ -72,6 +71,23 @@ class ModuloController {
           const data = request.all();
           const user = await User.query().where('id', data.user_id).first();
           if(user) {
+
+            const [min, max] = [1, 100];
+            let numeros = Array(8).fill(0);
+          
+            for(let i = 0; i < numeros.length; i++) {
+              let novo = 0;
+              while(numeros.includes(novo)) {
+                novo = Math.floor(Math.random() * (max - min + 1)) + min;
+              }
+              numeros[i] = novo;
+            }
+          
+            numeros.sort((a, b) => a - b);
+            let module_secret = Encryption.encrypt(numeros.join(''));
+
+            data.module_secret = module_secret;
+
             const res = await user.modulos().create(data);
             return res;
           } else {
@@ -105,8 +121,7 @@ class ModuloController {
    */
   async show ({ params, request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first()
+      const userAdmin = await auth.getUser();
       if(userAdmin && userAdmin.admin) {
         const modulo = await Modulo.query().where('id', params.id).first();
         if(modulo) {
@@ -139,8 +154,7 @@ class ModuloController {
    */
   async update ({ params, request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first()
+      const userAdmin = await auth.getUser();
       if(userAdmin && userAdmin.admin) {
         const { user_id, name, url } = request.all()
         if( user_id ) return response.status(203).send({ message: 'O usuário não pode ser alterado!' });
@@ -175,8 +189,7 @@ class ModuloController {
    */
   async destroy ({ params, request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first()
+      const userAdmin = await auth.getUser();
       if(userAdmin && userAdmin.admin) {
         const modulo = await Modulo.query().where('id', params.id).first();
         if(modulo) {
@@ -200,7 +213,7 @@ class ModuloController {
     try {
       const { url } = request.all();
       if(!url) return response.status(203).send({ message: 'A url é obrigatória!' });
-      const data = await Database.select('id', 'user_id', 'name', 'url').from('modulos').where('url', url).first();
+      const data = await Database.select('id', 'user_id', 'name', 'url', 'module_secret').from('modulos').where('url', url).first();
       if(data) {
         return data;
       } else {
@@ -208,6 +221,43 @@ class ModuloController {
       }
     } catch(err) {
       return response.status(500).send({ message: 'Falha ao buscar módulo pela url!', error: err });
+    }
+  }
+
+  async updateModuleSecret ({ request, response, auth }) {
+    try {
+      const userAdmin = await auth.getUser()
+      if(userAdmin && userAdmin.admin) {
+        const { url } = request.all()
+        const modulo = await Modulo.query().where('url', url).first();
+        if(modulo) {
+          const [min, max] = [1, 100];
+          let numeros = Array(8).fill(0);
+        
+          for(let i = 0; i < numeros.length; i++) {
+            let novo = 0;
+            while(numeros.includes(novo)) {
+              novo = Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+            numeros[i] = novo;
+          }
+        
+          numeros.sort((a, b) => a - b);
+          let module_secret = Encryption.encrypt(numeros.join(''));
+          modulo.module_secret = module_secret;
+          await modulo.save();
+          return modulo;
+        } else {
+          return response.status(203).send({ message: 'Este módulo não existe!' })      
+        }
+      } else {
+        return response.status(203).send({ message: 'Você não tem permissão alterar este módulo!' })
+      }
+    } catch(err) {
+      return response.status(500).send({ 
+        message: 'Falha ao alterar o módulo!',
+        error: err
+      })
     }
   }
 }

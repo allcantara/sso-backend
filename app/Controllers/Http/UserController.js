@@ -6,6 +6,7 @@ const UserToken = use('App/Models/UserToken');
 const { validateAll } = use('Validator');
 const Database = use('Database');
 const Helpers = use('Helpers');
+const Encryption = use('Encryption')
 
 const erroMessages = {
   'username.required': 'O nome de usuário é obrigatório!',
@@ -78,10 +79,25 @@ class UserController {
           if(data.approved) {
             const validToken = await auth.attempt(email, password);
 
+            const [min, max] = [1, 100];
+            let numeros = Array(8).fill(0);
+          
+            for(let i = 0; i < numeros.length; i++) {
+              let novo = 0;
+              while(numeros.includes(novo)) {
+                novo = Math.floor(Math.random() * (max - min + 1)) + min;
+              }
+              numeros[i] = novo;
+            }
+          
+            numeros.sort((a, b) => a - b);
+            let cripto = Encryption.encrypt(numeros.join('-'));
+
             const data_token = {
               user_id: data.id,
               token: validToken.token,
-              hora: new Date().getHours(),
+              hour: new Date().getHours(),
+              session_id: cripto
             }
 
             const existe_token = await UserToken.query().where('user_id', data.id).first();
@@ -90,11 +106,12 @@ class UserController {
               await UserToken.create(data_token);
             } else {
                 existe_token.token = validToken.token;
-                existe_token.hora = new Date().getHours();
+                existe_token.hour = new Date().getHours();
+                existe_token.session_id = cripto;
                 await existe_token.save();
             }
 
-            return { ...validToken, ...data };
+            return { ...validToken, ...data, session_id: existe_token.session_id };
           } else {
             return response.status(203).send({ message: 'Acesso negado!' })
           }
@@ -116,36 +133,10 @@ class UserController {
     }
   }
 
-  async loggedUser({ request, response }) {
-    try {
-      const { url } = request.all()
-      const modulo = await Database.select('user_id').from('modulos').where('url', url).first();
-      const data = await UserToken.query().where('user_id', modulo.user_id).first();
-      const user = data ? await Database.select('id', 'username', 'email').from('users').where('id', data.user_id).first() : null;
-      if(data) {
-          if(new Date().getHours() === data.hora && data.token) {
-              return response.status(200).send({ logged: true, user, token: data.token });
-          } else {
-              data.token = null;
-              await data.save();
-              return response.status(203).send({ logged: false, user });
-          }
-      }
-      
-      return response.status(404).send({ message: 'Usuário inválido!' });
-    } catch(err) {
-        console.log(err);
-        return response.status(500).send({
-            message: 'Ocorreu um erro na busca!',
-            error: err
-        })
-    }
-  }
 
   async index({ request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('admin').from('users').where('id', id).first();
+      const userAdmin = await auth.getUser()
       if(userAdmin && userAdmin.admin) {
         const data = await Database.select('id', 'username', 'email', 'path_image', 'approved', 'admin').from('users');
         return data;
@@ -163,8 +154,7 @@ class UserController {
 
   async indexNoAdmin({ request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('admin').from('users').where('id', id).first();
+      const userAdmin = await auth.getUser();
       if(userAdmin && userAdmin.admin) {
         const data = await Database.select('id', 'username', 'email', 'path_image', 'approved', 'admin').from('users').where('admin', false);
         return data;
@@ -182,8 +172,7 @@ class UserController {
 
   async indexAdmin({ request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('admin').from('users').where('id', id).first();
+      const userAdmin = await auth.getUser()
       if(userAdmin && userAdmin.admin) {
         const data = await Database.select('id', 'username', 'email', 'path_image', 'approved', 'admin').from('users').where('admin', true);
         return data;
@@ -201,8 +190,7 @@ class UserController {
 
   async approvedUser({ request, response, auth }) {
     try{
-      const { id } = auth.user;
-      const userAdmin = await User.query().where('id', id).first();
+      const userAdmin = await auth.getUser()
       const { email, approved } = request.all();
       if(!email) return response.status(203).send({ message: 'O e-mail do usuário é obrigatório!' });
       if(userAdmin && userAdmin.admin) {
@@ -225,8 +213,7 @@ class UserController {
 
   async approvedAdmin({ request, response, auth }) {
     try{
-      const { id } = auth.user;
-      const userAdmin = await User.query().where('id', id).first();
+      const userAdmin = await auth.getUser()
       const { email, admin } = request.all();
       if(!email) return response.status(203).send({ message: 'O e-mail do usuário é obrigatório!' });
       if(userAdmin && userAdmin.admin) {
@@ -253,8 +240,7 @@ class UserController {
 
   async showUser({ params, request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first();
+      const userAdmin = await auth.getUser();
       if(userAdmin && userAdmin.admin) {
         const user = await User.query().where('id', params.id).first();
         if(!user) return response.status(203).send({ message: 'Nenhum registro encontrado!' });
@@ -339,8 +325,7 @@ class UserController {
 
   async destroy({ params, request, response, auth }) {
     try {
-      const { id } = auth.user;
-      const userAdmin = await Database.select('id', 'admin').from('users').where('id', id).first();
+      const userAdmin = await auth.getUser()
       if(userAdmin && userAdmin.admin) {
         const user = await User.query().where('id', params.id).first();
         if(!user) return response.status(203).send({ message: 'Nenhum registro encontrado!' });

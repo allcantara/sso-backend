@@ -21,12 +21,13 @@ Route.post('/user', 'UserController.create');
 Route.post('/login', 'UserController.login');
 Route.post('/user/approved', 'UserController.approvedUser').middleware(["auth"]);
 Route.post('/user/approved/admin', 'UserController.approvedAdmin').middleware(["auth"]);
-Route.port('/user/logged', 'UserController.loggedUser').middleware(['auth']);
+Route.post('/user/logged', 'UserAuthController.loggedUser').middleware(['auth']);
 Route.put('/user/update/:id', 'UserController.updateUser').middleware(["auth"]);
 Route.delete('/user/delete/:id', 'UserController.destroy').middleware(["auth"]);
 
 Route.resource('/module', 'ModuloController').apiOnly().middleware(["auth"])
 Route.post('/module/url', 'ModuloController.showModuleUrl')
+Route.post('/module/secret/new', 'ModuloController.updateModuleSecret').middleware(["auth"]);
 
 Route.get('/user/list', 'UserController.index').middleware(["auth"]);
 Route.get('/user/list/admin', 'UserController.indexAdmin').middleware(["auth"]);
