@@ -5,9 +5,7 @@
 const Model = use('Model')
 
 class Modulo extends Model {
-  users () {
-    return this.hasMany('App/Models/User')
-  }
+
 }
 
 module.exports = Modulo

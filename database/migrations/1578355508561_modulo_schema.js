@@ -8,8 +8,7 @@ class ModuloSchema extends Schema {
   up () {
     this.create('modulos', (table) => {
       table.increments()
-      table.integer('user_id').unsigned().references('id').inTable('users')
-        .onUpdate('CASCADE').onDelete('CASCADE').notNullable()
+      table.integer('user_id')
       table.string('name').notNullable()
       table.string('url').notNullable().unique()
       table.string('module_secret').notNullable().unique()

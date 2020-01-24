@@ -14,6 +14,7 @@ class UserSchema extends Schema {
       table.string('path_image').notNullable()
       table.boolean('approved').notNullable().defaultTo(false)
       table.boolean('admin').notNullable().defaultTo(false)
+      table.integer('module_id')
       table.timestamps()
     })
   }

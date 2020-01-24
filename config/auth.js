@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict'
 
 /** @type {import('@adonisjs/framework/src/Env')} */
@@ -73,7 +74,7 @@ module.exports = {
     password: 'password',
     options: {
       secret: Env.get('APP_KEY'),
-      expiresIn: 60 // 1m = 60 | 15min = 900 | 30min = 1800 | 1H = 3600 | 2H = 7200 | 2H30min = 9000
+      expiresIn: 900 // 1m = 60 | 15min = 900 | 30min = 1800 | 1H = 3600 | 2H = 7200 | 2H30min = 9000
     }
   },
 
